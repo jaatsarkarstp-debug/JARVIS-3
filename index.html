@@ -3,114 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2D Sandbox Racer</title>
+    <title>Sling Puck Game</title>
     <style>
         body {
-            background-color: #121212;
+            background-color: #1a1a1a;
             color: white;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             height: 100vh;
             margin: 0;
-            font-family: monospace;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+        /* Wooden Board Styling */
         canvas {
-            background-color: #1e1e1e;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            background-color: #e0b084; /* Wood color */
+            border: 15px solid #5c3a21; /* Dark wood border */
+            border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        h1 {
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
 
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <h1>Fast Sling Puck</h1>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
 
 <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Player and Enemy Settings
-    let player = { x: 375, y: 500, size: 50, speed: 7 };
-    let enemy = { x: Math.random() * 750, y: -50, size: 50, speed: 5 };
+    // Game variables
+    const puckRadius = 18;
+    const friction = 0.985;
+    const wallWidth = 20;
+    const gateY1 = 180;
+    const gateY2 = 320;
     
-    let score = 0;
-    let gameOver = false;
+    let pucks = [];
+    let isDragging = false;
+    let draggedPuck = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
 
-    // Track which keys are currently pressed
-    const keys = {};
-    window.addEventListener("keydown", (e) => { keys[e.key] = true; });
-    window.addEventListener("keyup", (e) => { keys[e.key] = false; });
+    // Initialize Pucks
+    function initPucks() {
+        pucks = [];
+        // Left Side (White Pucks)
+        for(let i = 0; i < 5; i++) {
+            pucks.push({ x: 200, y: 100 + i * 75, vx: 0, vy: 0, radius: puckRadius, color: '#f0f0f0' });
+        }
+        // Right Side (Black Pucks)
+        for(let i = 0; i < 5; i++) {
+            pucks.push({ x: 600, y: 100 + i * 75, vx: 0, vy: 0, radius: puckRadius, color: '#2b2b2b' });
+        }
+    }
+
+    // Mouse Interaction
+    canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        for (let puck of pucks) {
+            let dist = Math.hypot(mouseX - puck.x, mouseY - puck.y);
+            // Agar mouse puck ke upar hai aur puck ruka hua hai
+            if (dist < puck.radius + 5 && Math.abs(puck.vx) < 1 && Math.abs(puck.vy) < 1) {
+                isDragging = true;
+                draggedPuck = puck;
+                dragStartX = mouseX;
+                dragStartY = mouseY;
+                break;
+            }
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (!isDragging || !draggedPuck) return;
+        const rect = canvas.getBoundingClientRect();
+        dragStartX = e.clientX - rect.left;
+        dragStartY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (isDragging && draggedPuck) {
+            // Drag karne par opposite direction mein force lagana (Slingshot)
+            let dx = draggedPuck.x - dragStartX;
+            let dy = draggedPuck.y - dragStartY;
+            
+            // Speed limit
+            draggedPuck.vx = dx * 0.25;
+            draggedPuck.vy = dy * 0.25;
+            
+            isDragging = false;
+            draggedPuck = null;
+        }
+    });
+
+    // Circular Collision Logic
+    function resolveCollision(p1, p2) {
+        const dx = p1.x - p2.x;
+        const dy = p1.y - p2.y;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < p1.radius + p2.radius) {
+            // Overlap theek karna taaki pucks chipke nahi
+            const overlap = (p1.radius + p2.radius - distance) / 2;
+            const nx = dx / distance;
+            const ny = dy / distance;
+            
+            p1.x += nx * overlap; p1.y += ny * overlap;
+            p2.x -= nx * overlap; p2.y -= ny * overlap;
+
+            // Bounce (Velocity exchange)
+            const kx = p1.vx - p2.vx;
+            const ky = p1.vy - p2.vy;
+            const p = 2 * (nx * kx + ny * ky) / 2; 
+            
+            p1.vx -= p * nx * 0.8; p1.vy -= p * ny * 0.8;
+            p2.vx += p * nx * 0.8; p2.vy += p * ny * 0.8;
+        }
+    }
 
     function update() {
-        if (gameOver) return;
-
-        // 1. Move Player
-        if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
-        if (keys["ArrowRight"] && player.x < canvas.width - player.size) player.x += player.speed;
-        if (keys["ArrowUp"] && player.y > 0) player.y -= player.speed;
-        if (keys["ArrowDown"] && player.y < canvas.height - player.size) player.y += player.speed;
-
-        // 2. Move Enemy
-        enemy.y += enemy.speed;
-
-        // 3. Score Points & Respawn
-        if (enemy.y > canvas.height) {
-            enemy.y = -50;
-            enemy.x = Math.random() * (canvas.width - enemy.size);
-            score++;
+        for (let i = 0; i < pucks.length; i++) {
+            let p = pucks[i];
             
-            // Level up speed
-            if (score % 5 === 0) enemy.speed++;
-        }
+            // Update Position
+            p.x += p.vx;
+            p.y += p.vy;
+            
+            // Apply Friction
+            p.vx *= friction;
+            p.vy *= friction;
 
-        // 4. Check Collision (Hitbox Math)
-        if (player.x < enemy.x + enemy.size &&
-            player.x + player.size > enemy.x &&
-            player.y < enemy.y + enemy.size &&
-            player.y + player.size > enemy.y) {
-            gameOver = true;
+            // Stop completely if moving very slow
+            if (Math.abs(p.vx) < 0.1) p.vx = 0;
+            if (Math.abs(p.vy) < 0.1) p.vy = 0;
+
+            // Outer Walls Collision
+            if (p.x - p.radius < 0) { p.x = p.radius; p.vx *= -0.8; }
+            if (p.x + p.radius > canvas.width) { p.x = canvas.width - p.radius; p.vx *= -0.8; }
+            if (p.y - p.radius < 0) { p.y = p.radius; p.vy *= -0.8; }
+            if (p.y + p.radius > canvas.height) { p.y = canvas.height - p.radius; p.vy *= -0.8; }
+
+            // Center Wall Logic
+            let centerWallX = canvas.width / 2;
+            if (p.x + p.radius > centerWallX - wallWidth/2 && p.x - p.radius < centerWallX + wallWidth/2) {
+                // Check if it's hitting the solid part (not the gap)
+                if (p.y < gateY1 || p.y > gateY2) {
+                    p.vx *= -0.8; // Bounce back
+                    // Push out of the wall to prevent glitching
+                    if (p.x < centerWallX) p.x = centerWallX - wallWidth/2 - p.radius;
+                    else p.x = centerWallX + wallWidth/2 + p.radius;
+                }
+            }
+
+            // Check collision with other pucks
+            for (let j = i + 1; j < pucks.length; j++) {
+                resolveCollision(p, pucks[j]);
+            }
         }
     }
 
     function draw() {
-        // Clear screen (redraw background)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw Player (Blue)
-        ctx.fillStyle = "#3296ff";
-        ctx.fillRect(player.x, player.y, player.size, player.size);
+        // Draw Center Line & Gate
+        ctx.fillStyle = "#8b5a2b"; // Dark wood wall
+        ctx.fillRect(canvas.width / 2 - wallWidth / 2, 0, wallWidth, gateY1);
+        ctx.fillRect(canvas.width / 2 - wallWidth / 2, gateY2, wallWidth, canvas.height - gateY2);
+        
+        // Draw court lines
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(canvas.width/2, canvas.height/2, 60, 0, Math.PI*2);
+        ctx.stroke();
 
-        // Draw Enemy (Red)
-        ctx.fillStyle = "#dc3232";
-        ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+        // Draw Bungee/Sling Lines
+        ctx.strokeStyle = "#1a1a1a";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(60, 0); ctx.lineTo(60, canvas.height);
+        ctx.moveTo(canvas.width - 60, 0); ctx.lineTo(canvas.width - 60, canvas.height);
+        ctx.stroke();
 
-        // Draw Score
-        ctx.fillStyle = "white";
-        ctx.font = "30px monospace";
-        ctx.fillText("Score: " + score, 15, 40);
+        // Draw Dragging Aim Line
+        if (isDragging && draggedPuck) {
+            ctx.beginPath();
+            ctx.moveTo(draggedPuck.x, draggedPuck.y);
+            ctx.lineTo(dragStartX, dragStartY);
+            ctx.strokeStyle = "rgba(255, 0, 0, 0.5)";
+            ctx.lineWidth = 5;
+            ctx.stroke();
+        }
 
-        // Draw Game Over Text
-        if (gameOver) {
-            ctx.fillStyle = "white";
-            ctx.font = "40px monospace";
-            ctx.fillText("CRASHED!", canvas.width / 2 - 90, canvas.height / 2);
-            ctx.font = "20px monospace";
-            ctx.fillText("Refresh the page to try again.", canvas.width / 2 - 175, canvas.height / 2 + 40);
+        // Draw Pucks
+        for (let p of pucks) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+            
+            // Puck border for 3D look
+            ctx.strokeStyle = (p.color === '#f0f0f0') ? '#b0b0b0' : '#111111';
+            ctx.lineWidth = 4;
+            ctx.stroke();
         }
     }
 
-    // Main Game Loop (Runs at the monitor's refresh rate, usually 60 FPS)
-    function gameLoop() {
+    function loop() {
         update();
         draw();
-        
-        if (!gameOver) {
-            requestAnimationFrame(gameLoop);
-        }
+        requestAnimationFrame(loop);
     }
 
-    // Start the game
-    gameLoop();
+    initPucks();
+    loop();
 </script>
 
 </body>
