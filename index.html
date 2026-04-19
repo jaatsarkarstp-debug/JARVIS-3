@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Blast Ultra - WebGL</title>
+    <style>
+        /* Keep the canvas fullscreen with no scrollbars */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // 1. Setup Scene, Camera, and Renderer (Equivalent to: app = Ursina())
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Anti-aliasing smooths the jagged edges of the 3D models
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2. High-end Environment (Equivalent to the giant sphere skybox)
+        const skyGeo = new THREE.SphereGeometry(500, 32, 32);
+        const skyMat = new THREE.MeshBasicMaterial({ 
+            color: 0xff6600, // Sunset orange equivalent
+            side: THREE.BackSide // Render on the inside of the sphere
+        });
+        const sky = new THREE.Mesh(skyGeo, skyMat);
+        scene.add(sky);
+
+        // Add dynamic lighting for PBR materials
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        // 3. EditorCamera (Allows you to click and drag to rotate the view)
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        camera.position.set(3.5, 3.5, 12); // Pulled back slightly to see the 8x8 grid
+        controls.target.set(3.5, 3.5, 0);  // Look at the center of the grid
+        controls.update();
+
+        // 4. Block Class / Grid Generation
+        const blocks = []; // Array to store blocks for mouse collision detection
+        const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+        const baseColor = 0x333333; // color.black66
+        const hoverColor = 0x007fff; // color.azure
+
+        // Create the 8x8 Grid
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                
+                // Create the solid block
+                const blockMat = new THREE.MeshStandardMaterial({ 
+                    color: baseColor,
+                    roughness: 0.4,
+                    metalness: 0.2
+                });
+                const block = new THREE.Mesh(blockGeo, blockMat);
+                block.position.set(x, y, 0);
+                block.scale.set(0.9, 0.9, 0.9);
+                
+                // Store custom variables for animation state
+                block.userData = {
+                    targetScale: 0.9,
+                    isHovered: false
+                };
+
+                // Create the "Glow" child entity
+                const glowMat = new THREE.MeshBasicMaterial({
+                    color: hoverColor,
+                    transparent: true,
+                    opacity: 0.0, // Invisible by default
+                    blending: THREE.AdditiveBlending // Gives it that neon light feel
+                });
+                const glow = new THREE.Mesh(blockGeo, glowMat);
+                glow.scale.set(1.15, 1.15, 1.15); // Slightly larger than the block
+                block.add(glow); // Attach to parent block
+                
+                block.userData.glow = glow;
+
+                scene.add(block);
+                blocks.push(block);
+            }
+        }
+
+        // 5. Mouse Interaction (Raycasting)
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // Track mouse position
+        window.addEventListener('mousemove', (event) => {
+            // Convert mouse coordinates to WebGL normalized device coordinates (-1 to +1)
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        // Ensure the game resizes correctly if the window is adjusted
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 6. The Render Loop (Equivalent to: app.run())
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update the raycaster with the camera and mouse position
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(blocks);
+
+            // Reset all blocks to default state
+            blocks.forEach(b => {
+                b.userData.targetScale = 0.9;
+                b.material.color.setHex(baseColor);
+                b.userData.glow.material.opacity = 0.0;
+            });
+
+            // If the mouse is hovering over a block, trigger 'on_mouse_enter' logic
+            if (intersects.length > 0) {
+                const hoveredBlock = intersects[0].object;
+                hoveredBlock.userData.targetScale = 1.1;
+                hoveredBlock.material.color.setHex(hoverColor);
+                hoveredBlock.userData.glow.material.opacity = 0.25;
+            }
+
+            // Smoothly animate the scale of all blocks (Lerping)
+            blocks.forEach(b => {
+                const speed = 0.2; // Adjust for faster/slower snapping
+                b.scale.lerp(new THREE.Vector3(
+                    b.userData.targetScale, 
+                    b.userData.targetScale, 
+                    b.userData.targetScale
+                ), speed);
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Start the engine
+        animate();
+    </script>
+</body>
+</html>
