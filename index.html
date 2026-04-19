@@ -3,118 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Block Blast - Classic Bevel Style</title>
+    <title>Block Blast Ultra - Premium 3D</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #0b0b1a; /* Dark navy background */ }
+        body { margin: 0; overflow: hidden; background-color: #05050a; }
         canvas { display: block; }
     </style>
 </head>
 <body>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
         const scene = new THREE.Scene();
         
-        // 1. USE AN ORTHOGRAPHIC CAMERA (For that flat, 2D puzzle-game look)
-        const aspect = window.innerWidth / window.innerHeight;
-        const viewSize = 6; 
-        const camera = new THREE.OrthographicCamera(-viewSize * aspect, viewSize * aspect, viewSize, -viewSize, 0.1, 100);
+        // Use Perspective Camera for deep 3D immersion
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(3.5, -2, 12); // Tilted view
         
-        // Center the camera on our 8x8 grid (which goes from x:0-7, y:0-7)
-        camera.position.set(3.5, 3.5, 10);
-        camera.lookAt(3.5, 3.5, 0);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        // Enable shadows for that drop-shadow effect in the image
-        renderer.shadowMap.enabled = true; 
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(window.devicePixelRatio); // Sharp graphics
         document.body.appendChild(renderer.domElement);
 
-        // 2. LIGHTING (Crucial for the bevel highlights)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.target.set(3.5, 3.5, 0);
+
+        // --- WORLD-CLASS LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        // Position light top-left to get the bright top/left edges and dark bottom/right edges
-        dirLight.position.set(-5, 10, 5); 
-        dirLight.castShadow = true;
-        scene.add(dirLight);
+        // Add colored point lights for a cyberpunk/neon vibe
+        const blueLight = new THREE.PointLight(0x0055ff, 2, 20);
+        blueLight.position.set(-2, 8, 5);
+        scene.add(blueLight);
 
-        // 3. THE "BEVELED GEM" GEOMETRY TRICK
-        // A 4-sided cylinder with a smaller top radius creates a beveled square!
-        const blockGeo = new THREE.CylinderGeometry(0.65, 0.95, 0.3, 4);
-        blockGeo.rotateY(Math.PI / 4); // Rotate 45 degrees to align the flat sides
-        blockGeo.rotateX(Math.PI / 2); // Tip it forward to face the camera
+        const pinkLight = new THREE.PointLight(0xff00aa, 2, 20);
+        pinkLight.position.set(9, -2, 5);
+        scene.add(pinkLight);
 
-        // The exact colors from your image
-        const colors = [
-            0xdf2020, // Red
-            0x20cc30, // Green
-            0x2060df, // Dark Blue
-            0xfacc20  // Yellow
-        ];
+        // --- PREMIUM GLASS/GEM MATERIALS ---
+        // This material creates a beautiful, refractive glass look
+        const glassMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            metalness: 0.1,
+            roughness: 0.1,
+            transmission: 0.9, // Makes it look like glass
+            thickness: 0.5,
+            envMapIntensity: 1.0,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1
+        });
 
-        const blocks = [];
+        // --- BUILD THE NETWORK (GRID) ---
+        const blockGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9); // Slightly rounded look
+        const gridGroup = new THREE.Group();
 
-        // 4. BUILD THE GRID AND BLOCKS
-        // First, build the dark background grid
-        const gridGeo = new THREE.PlaneGeometry(8, 8);
-        const gridMat = new THREE.MeshStandardMaterial({ color: 0x11112a });
-        const gridBg = new THREE.Mesh(gridGeo, gridMat);
-        gridBg.position.set(3.5, 3.5, -0.5); // Put it slightly behind the blocks
-        gridBg.receiveShadow = true;
-        scene.add(gridBg);
+        // Adding some random colors for testing the "network" look
+        const neonColors = [0xff2020, 0x20ff30, 0x2060ff, 0xffcc20];
 
-        // Now, populate some blocks like the image
         for (let x = 0; x < 8; x++) {
             for (let y = 0; y < 8; y++) {
-                
-                // Let's create a pattern similar to your image (bottom left green, top left red, etc.)
-                let blockColor = null;
-                if (x < 2 && y < 2) blockColor = colors[1]; // Green bottom-left
-                else if (x < 2 && y > 4) blockColor = colors[0]; // Red top-left
-                else if (x > 3 && y > 2 && y < 6 && x < 7) blockColor = colors[3]; // Yellow middle-right
-                else if (x > 3 && y < 2) blockColor = colors[2]; // Blue bottom-right
-                
-                if (blockColor !== null) {
-                    const blockMat = new THREE.MeshStandardMaterial({ 
-                        color: blockColor,
-                        roughness: 0.2, // Low roughness makes it glossy
-                        metalness: 0.1,
-                        flatShading: true // Keeps the bevel edges razor sharp
-                    });
-                    
-                    const block = new THREE.Mesh(blockGeo, blockMat);
+                // Background empty grid slot (Dark Glass)
+                const emptySlotMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x111115, roughness: 0.8, metalness: 0.2 
+                });
+                const slot = new THREE.Mesh(blockGeo, emptySlotMat);
+                slot.position.set(x, y, -0.5);
+                slot.scale.set(0.95, 0.95, 0.1);
+                gridGroup.add(slot);
+
+                // Add active blocks in a random network pattern
+                if (Math.random() > 0.6) {
+                    // Outer Glass Shell
+                    const block = new THREE.Mesh(blockGeo, glassMaterial);
                     block.position.set(x, y, 0);
-                    block.castShadow = true;
-                    block.receiveShadow = true;
                     
-                    scene.add(block);
-                    blocks.push(block);
+                    // Inner Glowing Core
+                    const randomColor = neonColors[Math.floor(Math.random() * neonColors.length)];
+                    const coreMat = new THREE.MeshBasicMaterial({ color: randomColor });
+                    const core = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), coreMat);
+                    
+                    block.add(core); // Put the glow inside the glass
+                    gridGroup.add(block);
                 }
             }
         }
+        
+        scene.add(gridGroup);
 
-        // Handle window resizing to keep the grid square
         window.addEventListener('resize', () => {
-            const newAspect = window.innerWidth / window.innerHeight;
-            camera.left = -viewSize * newAspect;
-            camera.right = viewSize * newAspect;
-            camera.top = viewSize;
-            camera.bottom = -viewSize;
+            camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // 5. RENDER LOOP
+        // Rotate the entire grid slightly for a dramatic effect
         function animate() {
             requestAnimationFrame(animate);
-            // Slowly pulse the light to give it life
-            dirLight.intensity = 0.7 + Math.sin(Date.now() * 0.002) * 0.1;
+            // Slowly moving lights
+            blueLight.position.x = Math.sin(Date.now() * 0.001) * 5 + 3.5;
+            pinkLight.position.y = Math.cos(Date.now() * 0.001) * 5 + 3.5;
+            
+            controls.update();
             renderer.render(scene, camera);
         }
-
         animate();
     </script>
 </body>
