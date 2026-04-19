@@ -16,11 +16,8 @@
             font-family: monospace;
         }
         canvas {
-            background-color: #2b2b2b;
+            background-color: #1e1e1e;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-            /* Road jaisa feel dene ke liye */
-            border-left: 5px dashed white;
-            border-right: 5px dashed white;
         }
     </style>
 </head>
@@ -32,20 +29,14 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // 1. Load Images (Ye naya part hai)
-    const playerImg = new Image();
-    playerImg.src = "player_car.png"; // Aapki car ki image file ka naam
-
-    const enemyImg = new Image();
-    enemyImg.src = "enemy_car.png";   // Enemy car ki image file ka naam
-
-    // Cars ab thodi rectangle hoti hain, toh size us hisaab se set kiya hai
-    let player = { x: 375, y: 500, width: 50, height: 90, speed: 7 };
-    let enemy = { x: Math.random() * 750, y: -100, width: 50, height: 90, speed: 5 };
+    // Player and Enemy Settings
+    let player = { x: 375, y: 500, size: 50, speed: 7 };
+    let enemy = { x: Math.random() * 750, y: -50, size: 50, speed: 5 };
     
     let score = 0;
     let gameOver = false;
 
+    // Track which keys are currently pressed
     const keys = {};
     window.addEventListener("keydown", (e) => { keys[e.key] = true; });
     window.addEventListener("keyup", (e) => { keys[e.key] = false; });
@@ -53,44 +44,52 @@
     function update() {
         if (gameOver) return;
 
-        // Move Player
+        // 1. Move Player
         if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
-        if (keys["ArrowRight"] && player.x < canvas.width - player.width) player.x += player.speed;
+        if (keys["ArrowRight"] && player.x < canvas.width - player.size) player.x += player.speed;
         if (keys["ArrowUp"] && player.y > 0) player.y -= player.speed;
-        if (keys["ArrowDown"] && player.y < canvas.height - player.height) player.y += player.speed;
+        if (keys["ArrowDown"] && player.y < canvas.height - player.size) player.y += player.speed;
 
-        // Move Enemy
+        // 2. Move Enemy
         enemy.y += enemy.speed;
 
-        // Score Points & Respawn
+        // 3. Score Points & Respawn
         if (enemy.y > canvas.height) {
-            enemy.y = -100;
-            enemy.x = Math.random() * (canvas.width - enemy.width);
+            enemy.y = -50;
+            enemy.x = Math.random() * (canvas.width - enemy.size);
             score++;
             
+            // Level up speed
             if (score % 5 === 0) enemy.speed++;
         }
 
-        // Check Collision
-        if (player.x < enemy.x + enemy.width &&
-            player.x + player.width > enemy.x &&
-            player.y < enemy.y + enemy.height &&
-            player.y + player.height > enemy.y) {
+        // 4. Check Collision (Hitbox Math)
+        if (player.x < enemy.x + enemy.size &&
+            player.x + player.size > enemy.x &&
+            player.y < enemy.y + enemy.size &&
+            player.y + player.size > enemy.y) {
             gameOver = true;
         }
     }
 
     function draw() {
+        // Clear screen (redraw background)
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 2. Draw Images instead of rectangles
-        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
-        ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
+        // Draw Player (Blue)
+        ctx.fillStyle = "#3296ff";
+        ctx.fillRect(player.x, player.y, player.size, player.size);
 
+        // Draw Enemy (Red)
+        ctx.fillStyle = "#dc3232";
+        ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+
+        // Draw Score
         ctx.fillStyle = "white";
         ctx.font = "30px monospace";
         ctx.fillText("Score: " + score, 15, 40);
 
+        // Draw Game Over Text
         if (gameOver) {
             ctx.fillStyle = "white";
             ctx.font = "40px monospace";
@@ -100,6 +99,7 @@
         }
     }
 
+    // Main Game Loop (Runs at the monitor's refresh rate, usually 60 FPS)
     function gameLoop() {
         update();
         draw();
@@ -109,10 +109,8 @@
         }
     }
 
-    // Start only AFTER images load to prevent blank flickering
-    playerImg.onload = () => {
-        gameLoop();
-    };
+    // Start the game
+    gameLoop();
 </script>
 
 </body>
